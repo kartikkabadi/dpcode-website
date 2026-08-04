@@ -10,6 +10,7 @@ on:
       - docs/workflow-guides
       - docs/help-and-troubleshooting
       - docs/quality-seo-aeo
+      - marketing/homepage-positioning
   push:
     branches:
       - docs/getting-started-overhaul
@@ -18,6 +19,7 @@ on:
       - docs/help-and-troubleshooting
       - docs/quality-seo-aeo
       - marketing/homepage-positioning
+      - marketing/visual-storytelling
 
 permissions:
   contents: read
@@ -35,11 +37,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22.19.0
           cache: npm
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Test public-surface contracts
         run: npm run test:docs
@@ -48,7 +53,81 @@ jobs:
         run: npm run lint
 
       - name: Build
-        run: npm run build
+        run: VISUAL_TEST=1 npm run build
 
       - name: Smoke test production routes
         run: npm run test:seo-smoke
+
+      - name: Functional browser checks
+        id: e2e
+        continue-on-error: true
+        run: npm run test:e2e
+
+      - name: Upload functional failure artifacts
+        if: ${{ always() && steps.e2e.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: functional-browser-failure
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+
+      - name: Accessibility checks
+        id: a11y
+        continue-on-error: true
+        run: npm run test:a11y
+
+      - name: Upload accessibility failure artifacts
+        if: ${{ always() && steps.a11y.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-failure
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+
+      - name: Visual regression checks
+        id: visual
+        continue-on-error: true
+        run: npm run test:visual
+
+      - name: Upload visual failure artifacts
+        if: ${{ always() && steps.visual.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-failure
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+
+      - name: Production performance checks
+        id: performance
+        continue-on-error: true
+        run: npm run test:performance
+
+      - name: Upload performance failure artifact
+        if: ${{ always() && steps.performance.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-failure
+          path: test-results/performance-summary.json
+          if-no-files-found: error
+
+      - name: Enforce browser quality gates
+        if: ${{ always() }}
+        env:
+          E2E_OUTCOME: ${{ steps.e2e.outcome }}
+          A11Y_OUTCOME: ${{ steps.a11y.outcome }}
+          VISUAL_OUTCOME: ${{ steps.visual.outcome }}
+          PERFORMANCE_OUTCOME: ${{ steps.performance.outcome }}
+        run: |
+          if [[ "$E2E_OUTCOME" != "success" || \
+                "$A11Y_OUTCOME" != "success" || \
+                "$VISUAL_OUTCOME" != "success" || \
+                "$PERFORMANCE_OUTCOME" != "success" ]]; then
+            echo "One or more browser quality gates failed. See the failing step and uploaded artifacts."
+            exit 1
+          fi

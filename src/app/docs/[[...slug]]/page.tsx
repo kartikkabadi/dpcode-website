@@ -74,8 +74,13 @@ export default async function DocumentationPage({ params }: DocumentationPagePro
         dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbJsonLd(breadcrumbs)) }}
       />
       <DocsPage
+        role="main"
+        aria-label="Documentation content"
         toc={page.data.toc}
-        tableOfContent={{ style: "clerk" }}
+        tableOfContent={{
+          style: "clerk",
+          container: { role: "navigation", "aria-labelledby": "toc-title" },
+        }}
         breadcrumb={{ includeRoot: false, includePage: true }}
         footer={{ enabled: false }}
       >
@@ -85,9 +90,7 @@ export default async function DocumentationPage({ params }: DocumentationPagePro
           <Content components={getMDXComponents()} />
         </DocsBody>
         <div className="docs-meta mt-6 flex flex-row flex-wrap items-center justify-end gap-3 border-t border-border pt-4 text-[0.8125rem] text-muted-foreground">
-          {page.data.lastModified ? (
-            <PageLastUpdate date={page.data.lastModified} />
-          ) : null}
+          {page.data.lastModified ? <PageLastUpdate date={page.data.lastModified} /> : null}
         </div>
         <DocsPagination previous={neighbours.previous} next={neighbours.next} />
       </DocsPage>
